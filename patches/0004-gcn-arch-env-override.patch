@@ -1,0 +1,28 @@
+diff --git a/vllm/platforms/rocm.py b/vllm/platforms/rocm.py
+index 6c3a0fe96..b61178db1 100644
+--- a/vllm/platforms/rocm.py
++++ b/vllm/platforms/rocm.py
+@@ -187,19 +187,12 @@ def _query_total_memory_from_amdsmi(physical_device_id: int) -> int:
+ 
+ def _get_gcn_arch() -> str:
+     """
+-    Get GCN arch via amdsmi (no CUDA init), fallback to torch.cuda.
++    Get GCN arch via torch.cuda (portable fallback; amdsmi unavailable).
+     Called once at module level; result stored in _GCN_ARCH.
+     """
+-    try:
+-        return _query_gcn_arch_from_amdsmi()
+-    except Exception as e:
+-        logger.debug("Failed to get GCN arch via amdsmi: %s", e)
+-        logger.warning_once(
+-            "Failed to get GCN arch via amdsmi, falling back to torch.cuda. "
+-            "This will initialize CUDA and may cause "
+-            "issues if CUDA_VISIBLE_DEVICES is not set yet."
+-        )
+-    # Ultimate fallback: use torch.cuda (will initialize CUDA)
++    arch = os.environ.get("HCP_ROCM_GCN_ARCH")
++    if arch:
++        return arch
+     return torch.cuda.get_device_properties("cuda").gcnArchName
+ 
+ 

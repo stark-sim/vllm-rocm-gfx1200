@@ -1,0 +1,18 @@
+diff --git a/vllm/platforms/__init__.py b/vllm/platforms/__init__.py
+index ac536aff0..cbcdc3803 100644
+--- a/vllm/platforms/__init__.py
++++ b/vllm/platforms/__init__.py
+@@ -124,6 +124,13 @@ def rocm_platform_plugin() -> str | None:
+             amdsmi.amdsmi_shut_down()
+     except Exception as e:
+         logger.debug("ROCm platform is not available because: %s", str(e))
++        try:
++            import torch
++            if torch.version.hip:
++                is_rocm = True
++                logger.debug("Falling back to ROCm because torch.version.hip is set.")
++        except Exception:
++            pass
+ 
+     return "vllm.platforms.rocm.RocmPlatform" if is_rocm else None
+ 

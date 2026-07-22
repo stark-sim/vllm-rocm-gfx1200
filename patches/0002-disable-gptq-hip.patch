@@ -1,0 +1,67 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 48c0270e2..b785507f9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -387,7 +387,6 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
+     "csrc/libtorch_stable/quantization/w8a8/fp8/per_token_group_quant.cu"
+     "csrc/libtorch_stable/quantization/w8a8/int8/per_token_group_quant.cu"
+     "csrc/libtorch_stable/permute_cols.cu"
+-    "csrc/libtorch_stable/quantization/gptq/q_gemm.cu"
+     "csrc/libtorch_stable/pos_encoding_kernels.cu"
+     "csrc/libtorch_stable/fused_qknorm_rope_kernel.cu"
+     "csrc/libtorch_stable/fused_minimax_m3_qknorm_rope_kv_insert_kernel.cu"
+diff --git a/csrc/libtorch_stable/quantization/gptq/q_gemm.cu b/csrc/libtorch_stable/quantization/gptq/q_gemm.cu
+index e3f79c5a6..d37e295ab 100644
+--- a/csrc/libtorch_stable/quantization/gptq/q_gemm.cu
++++ b/csrc/libtorch_stable/quantization/gptq/q_gemm.cu
+@@ -33,6 +33,13 @@ namespace gptq {
+ 
+ #if defined(USE_ROCM)
+   #include <hipblas/hipblas.h>
++// ROCm does not provide an atomicAdd overload for half2; emulate it with two
++// half atomic updates.  Only used by the GPTQ path, so performance is minor.
++__device__ __forceinline__ void atomicAdd(half2* address, half2 val) {
++    atomicAdd(reinterpret_cast<half*>(address), val.x);
++    atomicAdd(reinterpret_cast<half*>(address) + 1, val.y);
++}
++
+ __host__ __forceinline__ hipblasStatus_t __compat_hipblasHgemm(
+     hipblasHandle_t handle, hipblasOperation_t transA,
+     hipblasOperation_t transB, int m, int n, int k, const half* alpha,
+diff --git a/csrc/libtorch_stable/torch_bindings.cpp b/csrc/libtorch_stable/torch_bindings.cpp
+index 66a93a5ba..bee4fb009 100644
+--- a/csrc/libtorch_stable/torch_bindings.cpp
++++ b/csrc/libtorch_stable/torch_bindings.cpp
+@@ -572,14 +572,14 @@ STABLE_TORCH_LIBRARY_FRAGMENT(_C, ops) {
+   // Quantized GEMM for GPTQ.
+   // Note: even though the C++ inferred schema is correct for this op, it seems
+   // to prevent the meta function registry.
+-  ops.def(
+-      "gptq_gemm(Tensor a, Tensor b_q_weight, Tensor b_gptq_qzeros, "
+-      "Tensor b_gptq_scales, Tensor b_g_idx, bool use_exllama, bool "
+-      "use_v2_format, int bit) "
+-      "-> Tensor");
+-
++//   ops.def(
++//       "gptq_gemm(Tensor a, Tensor b_q_weight, Tensor b_gptq_qzeros, "
++//       "Tensor b_gptq_scales, Tensor b_g_idx, bool use_exllama, bool "
++//       "use_v2_format, int bit) "
++//       "-> Tensor");
++// 
+   // Post processing for GPTQ.
+-  ops.def("gptq_shuffle(Tensor! q_weight, Tensor q_perm, int bit) -> ()");
++//   ops.def("gptq_shuffle(Tensor! q_weight, Tensor q_perm, int bit) -> ()");
+ 
+   // Mamba selective scan kernel
+   ops.def(
+@@ -715,8 +715,8 @@ STABLE_TORCH_LIBRARY_IMPL(_C, CUDA, ops) {
+            TORCH_BOX(&dynamic_per_token_scaled_fp8_quant));
+ 
+   // GPTQ kernels
+-  ops.impl("gptq_gemm", TORCH_BOX(&gptq_gemm));
+-  ops.impl("gptq_shuffle", TORCH_BOX(&gptq_shuffle));
++//   ops.impl("gptq_gemm", TORCH_BOX(&gptq_gemm));
++//   ops.impl("gptq_shuffle", TORCH_BOX(&gptq_shuffle));
+ 
+   // Mamba kernels
+   ops.impl("selective_scan_fwd", TORCH_BOX(&selective_scan_fwd));
